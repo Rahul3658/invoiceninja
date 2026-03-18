@@ -6,19 +6,21 @@ WORKDIR /var/www
 # Install dependencies
 RUN apt-get update && apt-get install -y \
     git unzip curl libzip-dev zip \
-    && docker-php-ext-install pdo pdo_mysql zip
+    libpng-dev libjpeg-dev libfreetype6-dev \
+    && docker-php-ext-configure gd --with-freetype --with-jpeg \
+    && docker-php-ext-install pdo pdo_mysql zip bcmath gd
 
 # Install Composer
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
-# Copy project
-COPY . .
+# Copy composer files first (for caching 🔥)
+COPY composer.json composer.lock ./
 
-# Install Laravel dependencies
+# Install dependencies
 RUN composer install --no-dev --optimize-autoloader
 
-# Generate app key (IMPORTANT)
-RUN php artisan key:generate
+# Copy project
+COPY . .
 
 # Optimize Laravel
 RUN php artisan config:cache \
@@ -36,14 +38,20 @@ RUN apk add --no-cache \
     libzip-dev \
     oniguruma-dev \
     icu-dev \
- && docker-php-ext-install pdo pdo_mysql mbstring zip intl
+    libpng-dev libjpeg-turbo-dev freetype-dev \
+    && docker-php-ext-configure gd \
+       --with-freetype \
+       --with-jpeg \
+    && docker-php-ext-install pdo pdo_mysql mbstring zip intl bcmath gd
 
 # Copy from builder
 COPY --from=builder /var/www /var/www
 
-# Set permissions
-RUN chown -R www-data:www-data /var/www
+# Fix permissions
+RUN chown -R www-data:www-data /var/www \
+ && chmod -R 775 /var/www/storage /var/www/bootstrap/cache
 
-EXPOSE 9002
+# Correct port
+EXPOSE 9000
 
 CMD ["php-fpm"]
