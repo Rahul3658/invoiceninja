@@ -3,30 +3,22 @@ FROM php:8.2-fpm AS builder
 
 WORKDIR /var/www
 
-# Install dependencies
 RUN apt-get update && apt-get install -y \
     git unzip curl libzip-dev zip \
     libpng-dev libjpeg-dev libfreetype6-dev \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
     && docker-php-ext-install pdo pdo_mysql zip bcmath gd
 
-# Install Composer
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
-# Copy composer files first (for caching 🔥)
-COPY composer.json composer.lock ./
-
-# Install dependencies
-RUN composer install --no-dev --optimize-autoloader
-
-# Copy project
+# 🔥 FIX: copy full project before composer
 COPY . .
 
-# Optimize Laravel
+RUN composer install --no-dev --optimize-autoloader
+
 RUN php artisan config:cache \
  && php artisan route:cache \
  && php artisan view:cache
-
 
 # ---------- Stage 2: Production ----------
 FROM php:8.2-fpm-alpine
